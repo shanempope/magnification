@@ -168,8 +168,11 @@ int main(int argc, char **argv)
 			//cv::imshow("Input", normal);
 			//cv::imshow("Output", amplified);
 			//cv::waitKey(30);
-			
-			std::cout << amplified.tostring();
+                        cv::Size size = amplified.size();
+                        int total = size.width * size.height * amplified.channels();
+                        std::vector<uchar> data(amplified.ptr(), amplified.ptr() + total);
+                        std::string s(data.begin(), data.end());                   
+                        std::cout << s;
 		}
 	});
 
