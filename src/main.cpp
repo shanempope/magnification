@@ -169,7 +169,7 @@ int main(int argc, char **argv)
 			//cv::imshow("Output", amplified);
 			//cv::waitKey(30);
 			
-			std::cout << amplified
+			std::cout << amplified;
 		}
 	});
 
