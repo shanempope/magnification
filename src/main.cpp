@@ -68,7 +68,7 @@ int main(int argc, char **argv)
 	}
 
 	// Print out settings
-	std::cout << settings;
+	//std::cout << settings;
 
 	auto frame_num = 0;
 	std::vector<cv::Mat> low_pass1;
@@ -165,9 +165,11 @@ int main(int argc, char **argv)
 			amplified.convertTo(amplified, CV_8UC3, 255.0, 1.0 / 255.0);
 
 			// Display
-			cv::imshow("Input", normal);
-			cv::imshow("Output", amplified);
-			cv::waitKey(30);
+			//cv::imshow("Input", normal);
+			//cv::imshow("Output", amplified);
+			//cv::waitKey(30);
+			
+			std::cout << amplified
 		}
 	});
 
@@ -272,7 +274,7 @@ int main(int argc, char **argv)
 		auto t_now = std::chrono::high_resolution_clock::now();
 		std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t_now - t_start);
 
-		std::cout << "frame: " << frame_num << ", took " << elapsed.count() << "ms" << std::endl;
+		//std::cout << "frame: " << frame_num << ", took " << elapsed.count() << "ms" << std::endl;
 		frame_num++;
 
 		// Add to output queue
