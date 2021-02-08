@@ -14,9 +14,9 @@
 
 struct settings
 {
-	int levels = 5;
-	double alpha = 20.0;
-	double lambda_c = 20.0;
+	int levels = 6; // 5;
+	double alpha = 10.0; //20.0;
+	double lambda_c = 16.0; // 20.0;
 	double cutoff_frequency_high = 0.4;
 	double cutoff_frequency_low = 0.05;
 	double chrom_attenuation = 0.1;
@@ -78,6 +78,11 @@ int main(int argc, char **argv)
 	cv::VideoCapture capture(settings.filename);
 	auto w = capture.get(cv::CAP_PROP_FRAME_WIDTH);
 	auto h = capture.get(cv::CAP_PROP_FRAME_HEIGHT);
+  auto fps = capture.get(cv::CAP_PROP_FPS);
+	std::cout << "w: " << w << ", h: " << h << ", fps: " << fps << std::endl;
+
+	auto gst_saver = 'appsrc ! video/x-raw, format=BGR, width=%d, height=%d, framerate=%d/1 ! queue ! videoconvert ! video/x-raw, format=BGRx ! nvvidconv ! video/x-raw(memory:NVMM), format=NV12 ! nvv4l2h264enc ! h264parse ! mp4mux ! filesink location=output/test_out.mp4 ' % (cap_width, cap_height, cap_fps)
+  cv::VideoWriter writer(gst_saver, cv::CAP_GSTREAMER, 0, fps/1.0, (int(w), int(h)))
 
 	bool input_complete = false;
 	std::mutex input_mutex;
@@ -168,11 +173,11 @@ int main(int argc, char **argv)
 			//cv::imshow("Input", normal);
 			//cv::imshow("Output", amplified);
 			//cv::waitKey(30);
-                        cv::Size size = amplified.size();
-                        int total = size.width * size.height * amplified.channels();
-                        std::vector<uchar> data(amplified.ptr(), amplified.ptr() + total);
-                        std::string s(data.begin(), data.end());                   
-                        std::cout << s;
+			cv::Size size = amplified.size();
+			int total = size.width * size.height * amplified.channels();
+			std::vector<uchar> data(amplified.ptr(), amplified.ptr() + total);
+			std::string s(data.begin(), data.end());                   
+			std::cout << s;
 		}
 	});
 
@@ -277,7 +282,7 @@ int main(int argc, char **argv)
 		auto t_now = std::chrono::high_resolution_clock::now();
 		std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t_now - t_start);
 
-		//std::cout << "frame: " << frame_num << ", took " << elapsed.count() << "ms" << std::endl;
+		std::cout << "frame: " << frame_num << ", took " << elapsed.count() << "ms" << std::endl;
 		frame_num++;
 
 		// Add to output queue
