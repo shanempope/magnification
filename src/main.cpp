@@ -1,3 +1,4 @@
+//#include <opencv2/opencv.hpp>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -23,6 +24,7 @@ struct settings
 	double exaggeration_factor = 2.0;
 
 	std::string filename;
+	std::string server_address;
 };
 
 std::ostream &operator<<(std::ostream &strm, const settings &s)
@@ -40,6 +42,8 @@ std::ostream &operator<<(std::ostream &strm, const settings &s)
 
 int main(int argc, char **argv)
 {
+	//std::cout << cv::getBuildInformation() << std::endl;
+
 	settings settings;
 	static const std::tuple<std::regex, std::function<void(std::smatch)>> options[] = {
 		{std::regex("^levels=(\\d+)$"), [&](std::smatch m) { settings.levels = std::stoi(m.str(1), nullptr); }},
@@ -49,7 +53,14 @@ int main(int argc, char **argv)
 		{std::regex("^lambda_c=([+-]?((\\d+(\\.\\d*)?)|(\\.\\d+)))$"), [&](std::smatch m) { settings.lambda_c = std::stod(m.str(1), nullptr); }},
 		{std::regex("^chrom_attenuation=([+-]?((\\d+(\\.\\d*)?)|(\\.\\d+)))$"), [&](std::smatch m) { settings.chrom_attenuation = std::stod(m.str(1), nullptr); }},
 		{std::regex("^exaggeration_factor=([+-]?((\\d+(\\.\\d*)?)|(\\.\\d+)))$"), [&](std::smatch m) { settings.exaggeration_factor = std::stod(m.str(1), nullptr); }},
-		{std::regex("^(.*)$"), [&](std::smatch m) { settings.filename = m.str(1); }},
+		{std::regex("^(.*)$"), [&](std::smatch m) { 
+				if(settings.filename.empty()){
+					settings.filename = m.str(1);
+				}
+				else{
+					settings.server_address = m.str(1);
+				}
+			}},
 	};
 
 	// Parse options/settings
@@ -68,7 +79,7 @@ int main(int argc, char **argv)
 	}
 
 	// Print out settings
-	//std::cout << settings;
+	std::cout << settings;
 
 	auto frame_num = 0;
 	std::vector<cv::Mat> low_pass1;
@@ -78,11 +89,22 @@ int main(int argc, char **argv)
 	cv::VideoCapture capture(settings.filename);
 	auto w = capture.get(cv::CAP_PROP_FRAME_WIDTH);
 	auto h = capture.get(cv::CAP_PROP_FRAME_HEIGHT);
-  auto fps = capture.get(cv::CAP_PROP_FPS);
+  auto fps = 29.97;
 	std::cout << "w: " << w << ", h: " << h << ", fps: " << fps << std::endl;
 
-	auto gst_saver = 'appsrc ! video/x-raw, format=BGR, width=%d, height=%d, framerate=%d/1 ! queue ! videoconvert ! video/x-raw, format=BGRx ! nvvidconv ! video/x-raw(memory:NVMM), format=NV12 ! nvv4l2h264enc ! h264parse ! mp4mux ! filesink location=output/test_out.mp4 ' % (cap_width, cap_height, cap_fps)
-  cv::VideoWriter writer(gst_saver, cv::CAP_GSTREAMER, 0, fps/1.0, (int(w), int(h)))
+	std::ostringstream gst_builder;
+	// gst_builder << "appsrc ! video/x-raw, format=RGB, width=" << w << ", height=" << h << ", framerate=" << "0" << "/1 ! queue ! videoconvert ! video/x-raw, format=BGR ! x264enc tune=zerolatency speed-preset=superfast threads=2 ! h264parse ! mp4mux ! filesink location=test_out.mp4 ";
+	// gst_builder << "appsrc ! queue ! videoconvert ! x264enc tune=zerolatency speed-preset=superfast byte-stream=true threads=2 ! h264parse ! mp4mux ! filesink location=test_out.mp4 ";
+	// gst_builder << "appsrc ! queue ! videoconvert ! x264enc tune=zerolatency speed-preset=superfast byte-stream=true threads=2 ! mpegtsmux ! udpsink host=localhost port=9999 ";
+	// gst_builder << "appsrc ! queue ! videoconvert ! x264enc tune=zerolatency speed-preset=superfast byte-stream=true threads=2 ! rtph264pay ! udpsink host=localhost port=9999 ";
+	 gst_builder << "appsrc ! queue ! videoconvert ! video/x-raw, format=I420 ! x264enc tune=zerolatency speed-preset=superfast byte-stream=true threads=2 ! mpegtsmux ! hlssink playlist-root=http://" << settings.server_address << ":8080 playlist-location=/root/hls/playlist.m3u8 location=/root/hls/segment_%05d.ts target-duration=1 max-files=5 ";
+	std::string gst_saver = gst_builder.str();
+  cv::VideoWriter writer(gst_saver, cv::CAP_GSTREAMER, 0, fps, cv::Size(w, h));
+
+	if (!writer.isOpened()) {
+		std::cout << "Cannot create writer: " << gst_saver << std::endl;
+		return -1;
+	}
 
 	bool input_complete = false;
 	std::mutex input_mutex;
@@ -152,6 +174,7 @@ int main(int argc, char **argv)
 				});
 				if (output_complete && output_queue.empty())
 				{
+					writer.release();
 					return;
 				}
 
@@ -173,11 +196,15 @@ int main(int argc, char **argv)
 			//cv::imshow("Input", normal);
 			//cv::imshow("Output", amplified);
 			//cv::waitKey(30);
-			cv::Size size = amplified.size();
-			int total = size.width * size.height * amplified.channels();
-			std::vector<uchar> data(amplified.ptr(), amplified.ptr() + total);
-			std::string s(data.begin(), data.end());                   
-			std::cout << s;
+
+			// cv::Size size = amplified.size();
+			// int total = size.width * size.height * amplified.channels();
+			// std::vector<uchar> data(amplified.ptr(), amplified.ptr() + total);
+			// std::string s(data.begin(), data.end());                   
+			// std::cout << s;
+
+			// std::cout << "write frame..." << std::endl;
+			writer.write(amplified);
 		}
 	});
 
